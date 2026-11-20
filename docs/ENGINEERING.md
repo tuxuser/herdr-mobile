@@ -924,7 +924,8 @@ when it was installed reports nothing until it is restarted or resumed).
 - pi: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<id>.jsonl`, where the
   folder names the working directory (`--` plus the path with `/`, `\` and
   `:` as `-`, plus `--`). herdr's hook reports the path. With no report
-  nothing links a pane to a session.
+  nothing links a pane to a session. The file is written with the first
+  message: until then the chat waits, it does not fail.
 
 **Pictures.** The host cuts every binary payload out of the log it sends and
 leaves `[N bytes of data not sent; ref=<start>.<hash>]` (`start` is the byte
