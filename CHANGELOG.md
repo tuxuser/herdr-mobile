@@ -4,6 +4,14 @@ What changed for the person using herdr mobile, newest first. Versions follow
 `0.1.x` patch releases; each section is the release notes of its GitHub
 release.
 
+## [0.1.69] - 2026-11-20
+
+### A pi chat that just started waits instead of failing
+
+A brand-new pi session reported its log before pi had written it.
+The chat showed "Can't read the session log" instead of an empty transcript.
+Now the chat opens empty and follows the log once the first message makes pi write it.
+
 ## [0.1.68] - 2026-11-20
 
 ### Chat view for pi terminal sessions
