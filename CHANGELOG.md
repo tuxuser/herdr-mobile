@@ -4,6 +4,21 @@ What changed for the person using herdr mobile, newest first. Versions follow
 `0.1.x` patch releases; each section is the release notes of its GitHub
 release.
 
+## [0.1.68] - 2026-11-20
+
+### Chat view for pi terminal sessions
+
+A pane running pi now opens as a chat, like omp, Claude Code and Codex panes do.
+Before, a pi pane was raw terminal only.
+You need herdr's hook on the machine, then resume the session.
+The terminal's menu has "Read as chat...", or run `herdr integration install pi`.
+
+- The transcript comes from pi's own session log, with tool rows, thinking, plans and answers.
+- A run pi spawns in the background is a roster entry and a background task.
+- Its own transcript opens from the roster.
+- Approvals and questions are answered in the terminal.
+- The chat shows the result from the log.
+
 ## [0.1.67] - 2026-11-15
 
 [![Watch what's new · 1 change · 0:08 · 2.1 MB](https://github.com/tuan3w/herdr-mobile/releases/download/v0.1.67/0.1.67-whats-new.jpg)](https://github.com/tuan3w/herdr-mobile/releases/download/v0.1.67/0.1.67-whats-new.mp4)
