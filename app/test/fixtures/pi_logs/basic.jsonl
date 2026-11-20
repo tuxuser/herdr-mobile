@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"01a1f8c6-1976-721f-af3d-d7d3fe856a29","timestamp":"2026-11-20T11:44:54.649Z","cwd":"/work/proj"}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-11-20T11:46:24.618Z","message":{"role":"user","content":[{"type":"text","text":"list files"}]}}
+{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-11-20T11:46:27.212Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"checking the dir"},{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"ls -la"}}],"stopReason":"toolUse"}}
+{"type":"message","id":"r1","parentId":"a1","timestamp":"2026-11-20T11:46:27.274Z","message":{"role":"toolResult","toolCallId":"c1","toolName":"bash","content":[{"type":"text","text":"total 0\n"}],"isError":false}}
+{"type":"message","id":"a2","parentId":"r1","timestamp":"2026-11-20T11:46:28.614Z","message":{"role":"assistant","content":[{"type":"text","text":"done"}],"stopReason":"stop"}}

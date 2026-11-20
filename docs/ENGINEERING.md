@@ -921,6 +921,10 @@ when it was installed reports nothing until it is restarted or resumed).
   UUIDv7 whose first 48 bits are that moment in UTC: look in the day before,
   of and after. The file is made at the first prompt. herdr's hook reports the
   thread id only. With no report nothing links a pane to a thread.
+- pi: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<id>.jsonl`, where the
+  folder names the working directory (`--` plus the path with `/`, `\` and
+  `:` as `-`, plus `--`). herdr's hook reports the path. With no report
+  nothing links a pane to a session.
 
 **Pictures.** The host cuts every binary payload out of the log it sends and
 leaves `[N bytes of data not sent; ref=<start>.<hash>]` (`start` is the byte
@@ -956,6 +960,14 @@ cache holds shows by itself). Only a picture in a log line of up to 4 MiB (`FOLL
   then by the command string, then by the call still open. A declined approval
   interrupts the whole turn (`turn_aborted`). A `compacted` line is 1.2 MB and
   is skipped from its first 160 characters.
+- pi writes one line per entry in file order: a `session` header with the cwd,
+  a `message` per user prompt, assistant text or tool call batch (`stopReason`
+  `toolUse` while calls run, `stop` when the turn ends, `error` or `aborted`
+  when it does not), and one `toolResult` line per finished call carrying the
+  call id. `compaction` is a summarised-history note. A `todo` result carries
+  the task list. The question tool is `ask_user_question` (result `details`
+  hold the answers). Background jobs (`bg_wait`) and subagent transcripts are
+  not mapped yet.
 - A subagent: Claude writes `<session>/subagents/agent-<agentId>.jsonl` with a
   `.meta.json` naming the call (`toolUseId`), every line `isSidechain: true`
   (the main file has none); its finish is a `<task-notification>`. Codex's
@@ -986,7 +998,7 @@ rule only when it is a whole row of 20+ with no bar (a command row behind ` │ 
 the command's), takes every row of a Codex command, and ties a card to its log call
 only when exactly one call matches (two open calls with a cut subject in common
 show the screen's text, not either call). A card made before the log arrives is
-made again when it has the call. A new Claude/Codex chat with no log file yet is
+made again when it has the call. A new Claude/Codex/pi chat with no log file yet is
 live and empty (the first prompt makes the file); a reported path is `stat`ed
 first. `Agent` calls and Codex cells are not offered as "the call a dialog asks
 about".

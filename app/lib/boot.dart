@@ -26,6 +26,7 @@ import 'data/repositories/pane_previews.dart';
 import 'data/observed/claude_kind.dart';
 import 'data/observed/codex_kind.dart';
 import 'data/observed/omp_kind.dart';
+import 'data/observed/pi_kind.dart';
 import 'data/services/apk_installer.dart';
 import 'data/services/local_notifier.dart';
 import 'data/services/network_monitor.dart';
@@ -214,15 +215,15 @@ Future<HerdrMobileApp> bootApp({
           // tab is visible) is how it learns phases; only a few sessions hold
           // a channel (see AgentSessionRepository).
         );
-  // Agents that run in a pane are followed through their own session log
-  // (omp first), over the same connections.
+  // Agents that run in a pane are followed through their own session log,
+  // over the same connections.
   final observedSessions = connect != null
       ? null
       : ObservedSessions(
           fleet: fleet,
           previews: previews,
           sourceFor: (machine) => SshLogSource(SshAgentHost(machine.api.transport)),
-          kinds: {'omp': ompKind, 'claude': claudeKind, 'codex': codexKind},
+          kinds: {'omp': ompKind, 'claude': claudeKind, 'codex': codexKind, 'pi': piKind},
           detachAfter: holdFor,
         );
   // What needs the person, computed once per change of the fleet or the

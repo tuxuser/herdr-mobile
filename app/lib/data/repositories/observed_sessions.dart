@@ -16,7 +16,7 @@ import 'pane_previews.dart';
 /// their own, made from the main agent's.
 ///
 /// Which agents can be observed is the [kinds] map: herdr's agent label
-/// (`omp`, `claude`, `codex`) with the [ObservedKind] that finds and reads its
+/// (`omp`, `claude`, `codex`, `pi`) with the [ObservedKind] that finds and reads its
 /// log. A pane is observable when herdr names such an agent and its locator
 /// says the pane may have a log; a pane whose log turned out not to be
 /// findable ([markUnlinked]) opens as its terminal for a while.
