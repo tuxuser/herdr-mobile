@@ -57,6 +57,9 @@ class _Snap {
       phase == o.phase &&
       since == o.since &&
       unseen == o.unseen &&
+      s.model == o.s.model &&
+      s.modelProvider == o.s.modelProvider &&
+      s.thinking == o.s.thinking &&
       identical(s.items, o.s.items) &&
       identical(s.plan, o.s.plan) &&
       identical(s.pending, o.s.pending) &&
@@ -144,6 +147,7 @@ class _SessionOverviewState extends State<SessionOverview> {
                 if (model.files.isNotEmpty) ..._changed(context, model),
                 if (model.commands.isNotEmpty) ..._commands(context, model),
                 if (runs.isNotEmpty || observed.isNotEmpty) ..._subagents(context, state, runs, observed),
+                if ((state.model != null || state.thinking != null) && chips.isEmpty) ..._reportedModel(context, state),
                 if (chips.isNotEmpty) ..._settings(context, chips),
                 if (usage != null || state.turnUsage != null) ..._usage(context, usage, state.turnUsage),
                 if (state.pending.isNotEmpty) ..._pending(context, state.pending),
@@ -244,6 +248,19 @@ class _SessionOverviewState extends State<SessionOverview> {
     ];
   }
 
+  /// What the agent reports it runs as (an observed log states it; an ACP
+  /// session that offers model choices shows those instead, above).
+  List<Widget> _reportedModel(BuildContext context, AgentSessionState state) {
+    final model = state.model;
+    final provider = state.modelProvider;
+    final thinking = state.thinking;
+    return [
+      _Section('Mode and model'),
+      if (model != null) _Fact('Model', visibleText(provider == null ? model : '$model ($provider)')),
+      if (thinking != null) _Fact('Thinking', visibleText(thinking)),
+    ];
+  }
+
   List<Widget> _settings(BuildContext context, Iterable<SessionChip> chips) {
     final ds = context.ds;
     return [
@@ -314,6 +331,9 @@ class _SessionOverviewState extends State<SessionOverview> {
           ),
         ),
       ],
+      // A window whose size is unknown still says what it used.
+      if (fraction == null && cost == null && turn == null && usage != null)
+        _Fact('Used', '${formatTokens(usage.used)} tokens'),
       if (cost != null) _Fact('Cost', formatCost(cost, usage!.costCurrency)),
       if (turn != null) _Fact('Last turn', _turnWords(turn)),
     ];

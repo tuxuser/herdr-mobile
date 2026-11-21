@@ -967,7 +967,10 @@ cache holds shows by itself). Only a picture in a log line of up to 4 MiB (`FOLL
   when it does not), and one `toolResult` line per finished call carrying the
   call id. `compaction` is a summarised-history note. A `todo` result carries
   the task list. The question tool is `ask_user_question` (result `details`
-  hold the answers). A `subagent` spawn names its run (`details` `runId`);
+  hold the answers). `model_change` and `thinking_level_change` name what the
+  agent runs as; an assistant message's `usage` (`input` plus `output`) is
+  the context used, sized by the host's `models-store.json` when it names
+  the model. A `subagent` spawn names its run (`details` `runId`);
   a `bg_wait` result lists whose runs completed, and a `subagent-notify`
   notice settles the runs its `details` `runs` list names (run id and
   status; the text is shown, never parsed). A finished run, a control

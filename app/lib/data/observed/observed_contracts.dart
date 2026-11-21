@@ -3,6 +3,15 @@ import 'dart:typed_data';
 import '../acp/acp_models.dart' show SessionUpdate;
 import '../acp/background/background_work.dart' show BackgroundTask;
 
+/// A mapper whose agent reports what it runs as (`model_change`) on a host
+/// whose model catalog the phone can read: context sizes by
+/// `provider/modelId`, set once the catalog is loaded, so usage grows a
+/// window size. Null until set; the mapper works without it, unsized.
+abstract interface class ContextSizedMapper {
+  Map<String, int>? get contextSizes;
+  set contextSizes(Map<String, int>? sizes);
+}
+
 /// OBSERVED SESSIONS. An agent that runs in a herdr pane on the owner's PC
 /// (`omp` first) is shown on the phone as the same chat an agent session is,
 /// without any setup: the transcript comes from the agent's own session log

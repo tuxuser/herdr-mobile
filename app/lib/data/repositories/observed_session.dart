@@ -21,6 +21,7 @@ import '../observed/background_view.dart';
 import '../observed/log_picture.dart';
 import '../observed/observed_contracts.dart';
 import '../observed/observed_kind.dart';
+import '../observed/pi_context.dart';
 import '../observed/omp_ask_driver.dart' show AskDone, AskMismatch, AskSend;
 import '../observed/session_log_locator.dart';
 import '../services/herdr_transport.dart' show HerdrApiException, HerdrTransportException;
@@ -1261,6 +1262,8 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
               }
               _followedPath = path;
               if (!_ready) _setLink(AgentLink.connecting);
+              await _loadContextSizes();
+              if (!_alive(epoch)) return;
               final gotRecords = await _followOnce(path, epoch);
               if (!_alive(epoch)) return;
               if (gotRecords) attempt = 0;
@@ -1314,6 +1317,22 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
   /// Where the log is now: what the agent's locator says about the pane (herdr
   /// names it, or its files do), or, for a subagent, where its kind keeps the
   /// transcript.
+  /// The model catalog of a mapper that sizes context by it, loaded once:
+  /// usage grows a window size from the first follow on. A catalog that
+  /// cannot be read leaves usage unsized; the chat must never fail because
+  /// this enrichment did, so the failure stays silent here by design.
+  Future<void> _loadContextSizes() async {
+    final mapper = _mapper;
+    if (mapper is! ContextSizedMapper) return;
+    final sized = mapper as ContextSizedMapper;
+    if (sized.contextSizes != null) return;
+    try {
+      sized.contextSizes = await loadPiContextSizes(machine.files);
+    } on Object {
+      sized.contextSizes = null;
+    }
+  }
+
   Future<LogLocation> _locate() async {
     if (_isSub) {
       final parentPath = parent!.logPath;

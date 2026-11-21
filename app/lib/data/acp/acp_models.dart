@@ -1988,6 +1988,17 @@ class UsageUpdate extends SessionUpdate {
   final AcpUsage usage;
 }
 
+/// The agent's model or thinking level, as the log reports it. Null keeps
+/// what the state has: a log states each fact once and restates it only on
+/// change, never clears it.
+class SessionModelUpdate extends SessionUpdate {
+  const SessionModelUpdate({this.provider, this.model, this.thinking});
+
+  final String? provider;
+  final String? model;
+  final String? thinking;
+}
+
 /// The v2 draft's foreground-work state.
 class StateUpdate extends SessionUpdate {
   const StateUpdate(this.state, this.stopReason);

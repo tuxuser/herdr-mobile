@@ -23,7 +23,7 @@ import 'observed_contracts.dart';
 /// calls are keyed by their call id and patches replace, and an entry id this
 /// mapper has already mapped yields nothing. The memory of seen ids lives in
 /// the mapper: reset it together with the state it feeds.
-class PiLogMapper implements SessionLogMapper {
+class PiLogMapper implements SessionLogMapper, ContextSizedMapper {
   static const _titleChars = 120;
   static const _assignmentChars = 400;
 
@@ -34,6 +34,13 @@ class PiLogMapper implements SessionLogMapper {
   PendingAsk? _ask;
   String? _cwd;
   var _turnEnded = false;
+
+  String? _provider;
+  String? _model;
+  String? _thinking;
+
+  @override
+  Map<String, int>? contextSizes;
 
   final _subagents = <String, SubagentInfo>{};
   final _tasks = <String, BackgroundTask>{};
@@ -68,6 +75,12 @@ class PiLogMapper implements SessionLogMapper {
     _ask = null;
     _cwd = null;
     _turnEnded = false;
+    // What the agent runs as is re-stated by the new log; holding it would
+    // suppress its first sighting as unchanged. The sizes table is the
+    // machine's, not the log's, so it stays.
+    _provider = null;
+    _model = null;
+    _thinking = null;
   }
 
   @override
@@ -87,12 +100,36 @@ class PiLogMapper implements SessionLogMapper {
     }
   }
 
+  /// A change of what the agent runs as: the first sighting and every
+  /// change after it, so a replay that repeats the log changes nothing.
+  List<SessionUpdate> _noteModel(Json e, String line, {Object? provider, Object? model}) {
+    final p = provider is String && provider.isNotEmpty ? provider : null;
+    final m = model is String && model.isNotEmpty ? model : null;
+    if ((p ?? _provider) == _provider && (m ?? _model) == _model) return const [];
+    // Null keeps: an entry that names only one half leaves the other.
+    if (p != null) _provider = p;
+    if (m != null) _model = m;
+    final key = _firstTime(e, line);
+    if (key == null) return const [];
+    return [SessionModelUpdate(provider: p, model: m)];
+  }
+
   List<SessionUpdate> _entry(Json e, String line) {
     switch (e['type']) {
       case 'session':
         final cwd = e['cwd'];
         if (cwd is String && cwd.isNotEmpty) _cwd = cwd;
         return const [];
+      case 'model_change':
+        return _noteModel(e, line, provider: e['provider'], model: e['modelId']);
+      case 'thinking_level_change':
+        final level = e['thinkingLevel'];
+        if (level is! String || level.isEmpty) return const [];
+        if (level == _thinking) return const [];
+        _thinking = level;
+        final key = _firstTime(e, line);
+        if (key == null) return const [];
+        return [SessionModelUpdate(thinking: level)];
       case 'message':
         final m = e['message'];
         if (m is! Map<String, dynamic>) return const [];
@@ -163,6 +200,8 @@ class PiLogMapper implements SessionLogMapper {
         }
       }
     }
+    final usage = _usageOf(m);
+    if (usage != null) out.add(usage);
     if (m['stopReason'] == 'error') {
       final err = m['errorMessage'];
       out.add(
@@ -429,6 +468,18 @@ class PiLogMapper implements SessionLogMapper {
     'deleted' => PlanStatus.cancelled,
     _ => PlanStatus.pending,
   };
+
+  /// The context the last assistant message saw: its input plus its
+  /// output tokens, sized when the model catalog named this model.
+  UsageUpdate? _usageOf(Json m) {
+    final u = m['usage'];
+    if (u is! Map<String, dynamic>) return null;
+    final input = u['input'];
+    final output = u['output'];
+    if (input is! int || output is! int) return null;
+    final size = _provider == null || _model == null ? 0 : (contextSizes?['$_provider/$_model'] ?? 0);
+    return UsageUpdate(AcpUsage(used: input + output, size: size));
+  }
 
   static String _userText(Object? content) {
     if (content is String) return content;

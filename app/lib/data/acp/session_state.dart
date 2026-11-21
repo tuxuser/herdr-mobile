@@ -351,6 +351,9 @@ class AgentSessionState {
     this.title,
     this.updatedAt,
     this.usage,
+    this.modelProvider,
+    this.model,
+    this.thinking,
     this.pending = const [],
     this.turnActive = false,
     this.cancelRequested = false,
@@ -379,6 +382,12 @@ class AgentSessionState {
   final String? title;
   final DateTime? updatedAt;
   final AcpUsage? usage;
+
+  /// What the agent runs as, as its log last reported (pi `model_change`):
+  /// the provider, the model id and the thinking level. Null until reported.
+  final String? modelProvider;
+  final String? model;
+  final String? thinking;
 
   /// Requests waiting for the person, oldest first.
   final List<PendingRequest> pending;
@@ -517,6 +526,9 @@ class AgentSessionState {
     Object? title = _keep,
     Object? updatedAt = _keep,
     Object? usage = _keep,
+    Object? modelProvider = _keep,
+    Object? model = _keep,
+    Object? thinking = _keep,
     List<PendingRequest>? pending,
     bool? turnActive,
     bool? cancelRequested,
@@ -544,6 +556,9 @@ class AgentSessionState {
     title: identical(title, _keep) ? this.title : title as String?,
     updatedAt: identical(updatedAt, _keep) ? this.updatedAt : updatedAt as DateTime?,
     usage: identical(usage, _keep) ? this.usage : usage as AcpUsage?,
+    modelProvider: identical(modelProvider, _keep) ? this.modelProvider : modelProvider as String?,
+    model: identical(model, _keep) ? this.model : model as String?,
+    thinking: identical(thinking, _keep) ? this.thinking : thinking as String?,
     pending: pending ?? this.pending,
     turnActive: turnActive ?? this.turnActive,
     cancelRequested: cancelRequested ?? this.cancelRequested,
@@ -616,6 +631,11 @@ class AgentSessionState {
       infoMeta: update.meta ?? _keep,
     ),
     UsageUpdate() => _copy(usage: update.usage),
+    SessionModelUpdate() => _copy(
+      modelProvider: update.provider ?? _keep,
+      model: update.model ?? _keep,
+      thinking: update.thinking ?? _keep,
+    ),
     StateUpdate() => _state(update, now),
     AsyncTaskSpawned() => _background(backgroundBook.withSpawned(update, now: now)),
     AsyncTaskProgress() => _background(backgroundBook.withProgress(update, now: now)),

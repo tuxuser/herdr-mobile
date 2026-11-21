@@ -485,4 +485,100 @@ void main() {
       expect(_texts(twice, MessageRole.agent), ['hello']);
     });
   });
+
+  group('model, thinking and context', () {
+    test('model and thinking level changes show on the state', () {
+      final m = PiLogMapper();
+      final s = _feed(m, [
+        _entry({
+          'type': 'model_change',
+          'id': 'm1',
+          'provider': 'opencode-go',
+          'modelId': 'muse-spark-1.3-contributor',
+        }),
+        _entry({'type': 'thinking_level_change', 'id': 't1', 'thinkingLevel': 'medium'}),
+      ]);
+      expect(s.modelProvider, 'opencode-go');
+      expect(s.model, 'muse-spark-1.3-contributor');
+      expect(s.thinking, 'medium');
+    });
+
+    test('a later change replaces the earlier one; replay keeps the latest', () {
+      final m = PiLogMapper();
+      final lines = [
+        _entry({'type': 'model_change', 'id': 'm1', 'provider': 'a', 'modelId': 'one'}),
+        _entry({'type': 'thinking_level_change', 'id': 't1', 'thinkingLevel': 'low'}),
+        _entry({'type': 'model_change', 'id': 'm2', 'provider': 'a', 'modelId': 'two'}),
+      ];
+      final once = _feed(m, lines);
+      expect(once.model, 'two');
+      expect(once.thinking, 'low');
+      final twice = _feed(PiLogMapper(), lines);
+      expect(twice.model, 'two');
+      expect(twice.thinking, 'low');
+      m.reset();
+      final rebuilt = _feed(m, lines);
+      expect(rebuilt.model, 'two');
+      expect(rebuilt.thinking, 'low');
+    });
+
+    test('assistant usage sets the context used, sized when the table knows the model', () {
+      final m = PiLogMapper()..contextSizes = {'opencode-go/muse-spark-1.3-contributor': 1000000};
+      final s = _feed(m, [
+        _entry({
+          'type': 'model_change',
+          'id': 'm1',
+          'provider': 'opencode-go',
+          'modelId': 'muse-spark-1.3-contributor',
+        }),
+        _assistant('a1', [
+          {'type': 'text', 'text': 'hi'},
+        ]),
+      ]);
+      expect(s.usage, isNull, reason: 'no usage on the message yet');
+      final withUsage = _feed(PiLogMapper()..contextSizes = {'opencode-go/muse-spark-1.3-contributor': 1000000}, [
+        _entry({
+          'type': 'model_change',
+          'id': 'm9',
+          'provider': 'opencode-go',
+          'modelId': 'muse-spark-1.3-contributor',
+        }),
+        _entry({
+          'type': 'message',
+          'id': 'a2',
+          'message': {
+            'role': 'assistant',
+            'content': [
+              {'type': 'text', 'text': 'hi'},
+            ],
+            'stopReason': 'stop',
+            'usage': {'input': 418, 'output': 99},
+          },
+        }),
+      ]);
+      expect(withUsage.usage!.used, 517);
+      expect(withUsage.usage!.size, 1000000);
+    });
+
+    test('usage without a known size stays unsized, never zero-sized progress', () {
+      final m = PiLogMapper();
+      final s = _feed(m, [
+        _entry({
+          'type': 'message',
+          'id': 'a1',
+          'message': {
+            'role': 'assistant',
+            'content': [
+              {'type': 'text', 'text': 'hi'},
+            ],
+            'stopReason': 'stop',
+            'usage': {'input': 100, 'output': 50},
+          },
+        }),
+      ]);
+      expect(s.usage!.used, 150);
+      expect(s.usage!.size, 0);
+      expect(s.usage!.fraction, isNull);
+    });
+  });
 }
