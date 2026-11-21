@@ -16,7 +16,10 @@ import 'code_panel.dart';
 import 'content_blocks.dart';
 import 'content_locations.dart';
 import 'diff_lines.dart';
+import 'output_language.dart';
 import 'transcript_rows.dart';
+import '../../render/markdown/md_code_block.dart';
+import '../../render/markdown/md_document.dart' show MdCode;
 import '../../render/visible_text.dart';
 import 'log_atoms.dart';
 
@@ -349,12 +352,31 @@ class _CommandPart extends _Part {
 }
 
 class _TextPart extends _Part {
-  const _TextPart(this.lines, {required this.label, this.fromEnd = false});
+  const _TextPart(this.lines, {required this.label, this.fromEnd = false, this.language, this.code});
   final List<CodeLine> lines;
   final String? label;
 
   /// The panel keeps the last lines (command output) instead of the first.
   final bool fromEnd;
+
+  /// The language [code] reads as, with the text it highlights; set together.
+  /// Null when the text reads as nothing: the panel stays plain.
+  final String? language;
+  final String? code;
+}
+
+/// An output panel: stripped text, its lines, and the language it reads as.
+/// Detection runs once, on the finished text; a cut text stays plain, since
+/// the note saying what is missing is not part of what would highlight.
+_TextPart _outputPart(String stripped, {required String? label, required bool fromEnd, required bool finished}) {
+  final language = finished ? outputLanguage(stripped) : null;
+  return _TextPart(
+    textLines(stripped, fromEnd: fromEnd),
+    label: label,
+    fromEnd: fromEnd,
+    language: language,
+    code: language == null ? null : stripped,
+  );
 }
 
 class _DiffPart extends _Part {
@@ -419,6 +441,7 @@ List<_Part> _partsOf(ToolCall call) {
   if (cached != null) return cached;
   final out = <_Part>[];
   final tail = call.kind == ToolKind.execute;
+  final finished = call.status.isFinished;
   final command = toolCommand(call);
   if (command != null) out.add(_CommandPart(command));
 
@@ -427,13 +450,10 @@ List<_Part> _partsOf(ToolCall call) {
     final text = run?.toString();
     run = null;
     if (text != null) {
-      out.add(
-        _TextPart(
-          textLines(text, fromEnd: tail),
-          label: tail ? 'Output' : null,
-          fromEnd: tail,
-        ),
-      );
+      // Mapped text arrives raw (an observed log holds what the program
+      // printed): strip it the way `_meta` output is stripped, so a CRLF
+      // file does not spray U+000D escapes and colour codes do not leak.
+      out.add(_outputPart(terminalText(text), label: tail ? 'Output' : null, fromEnd: tail, finished: finished));
     }
   }
 
@@ -442,14 +462,18 @@ List<_Part> _partsOf(ToolCall call) {
   final printed = call.output;
   void addPrinted(ToolOutput o) {
     if (o.text.isNotEmpty) {
-      final lines = textLines(terminalText(o.text), fromEnd: true);
-      out.add(
-        _TextPart(
-          [if (o.cutChars > 0) CodeLine('${countOf(o.cutChars, 'character')} not shown'), ...lines],
-          label: 'Output',
-          fromEnd: true,
-        ),
-      );
+      final stripped = terminalText(o.text);
+      if (o.cutChars > 0) {
+        out.add(
+          _TextPart(
+            [CodeLine('${countOf(o.cutChars, 'character')} not shown'), ...textLines(stripped, fromEnd: true)],
+            label: 'Output',
+            fromEnd: true,
+          ),
+        );
+      } else {
+        out.add(_outputPart(stripped, label: 'Output', fromEnd: true, finished: finished));
+      }
     }
     if (o.progress.isNotEmpty) out.add(_TextPart(textLines(terminalText(o.progress)), label: 'Progress'));
     if (o.failed) {
@@ -506,13 +530,7 @@ List<_Part> _partsOf(ToolCall call) {
       final printedText = rawOutputText(output);
       final text = printedText ?? compactJson(output);
       if (text.trim().isNotEmpty) {
-        out.add(
-          _TextPart(
-            textLines(text, fromEnd: tail),
-            label: 'Output',
-            fromEnd: tail,
-          ),
-        );
+        out.add(_outputPart(terminalText(text), label: 'Output', fromEnd: tail, finished: finished));
       }
     } else if (command == null && call.rawInput != null) {
       final text = compactJson(call.rawInput);
@@ -587,7 +605,16 @@ class _ToolBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (part.label != null) label(part.label!),
-              panel(part.lines, fromEnd: part.fromEnd, cap: part.fromEnd ? commandOutputLines : toolTextLines),
+              // Language implies a finished call (detection runs once, on
+              // the final text), so the block never streams: no tail.
+              if (part.language != null && part.code != null)
+                MdCodeBlock(
+                  code: MdCode(language: part.language!, text: part.code!),
+                  expanded: all,
+                  onToggleExpanded: onToggleAll,
+                )
+              else
+                panel(part.lines, fromEnd: part.fromEnd, cap: part.fromEnd ? commandOutputLines : toolTextLines),
             ],
           ),
           _DiffPart() => Column(

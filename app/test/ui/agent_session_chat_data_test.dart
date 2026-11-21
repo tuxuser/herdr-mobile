@@ -5,8 +5,10 @@ import 'package:herdr_mobile/data/acp/session_state.dart';
 import 'package:herdr_mobile/ui/core/kit.dart';
 import 'package:herdr_mobile/ui/features/agent_session/agent_session_screen.dart';
 import 'package:herdr_mobile/ui/features/agent_session/question_form.dart';
+import 'package:herdr_mobile/ui/features/agent_session/code_panel.dart';
 import 'package:herdr_mobile/ui/features/agent_session/tool_rows.dart';
 import 'package:herdr_mobile/ui/features/agent_session/transcript_rows.dart';
+import 'package:herdr_mobile/ui/render/markdown/md_code_block.dart';
 import 'package:herdr_mobile/ui/render/visible_text.dart';
 
 import '../support/fake_agent_session.dart';
@@ -174,6 +176,80 @@ void main() {
       expect(find.textContaining('10%'), findsNothing);
       expect(find.text('evil ‹U+202E›txt'), findsOneWidget);
       expect(find.textContaining('\x1B'), findsNothing);
+    });
+
+    testWidgets('mapped text output is cleaned the same way: CRLF folded, escapes stripped', (tester) async {
+      final session = FakeAgentSession(
+        state: AgentSessionState('s1')
+            .apply(
+              _u({
+                'sessionUpdate': 'tool_call',
+                'toolCallId': 'c1',
+                'title': 'sed header',
+                'kind': 'execute',
+                'status': 'completed',
+                'rawInput': {'command': "sed -n '1,2p' ScpService.h"},
+                'content': [
+                  {
+                    'type': 'content',
+                    'content': {'type': 'text', 'text': '  line one\r\n\r\n  line two\x1B[32m\r\n'},
+                  },
+                ],
+              }),
+            )
+            .withTurnStarted(),
+      );
+      await pumpScreen(tester, session);
+      await tester.tap(find.text("sed -n '1,2p' ScpService.h"));
+      await tester.pump();
+
+      expect(find.textContaining('U+000D'), findsNothing);
+      expect(find.textContaining('\x1B'), findsNothing);
+      expect(find.textContaining('line one'), findsOneWidget);
+      expect(find.textContaining('line two'), findsOneWidget);
+    });
+
+    testWidgets('output that reads as source shows highlighted code; anything else stays a plain panel', (
+      tester,
+    ) async {
+      AgentSessionState textCall(String title, String text) => const AgentSessionState('s1')
+          .apply(
+            _u({
+              'sessionUpdate': 'tool_call',
+              'toolCallId': 'c1',
+              'title': title,
+              'kind': 'execute',
+              'status': 'completed',
+              'rawInput': {'command': title},
+              'content': [
+                {
+                  'type': 'content',
+                  'content': {'type': 'text', 'text': text},
+                },
+              ],
+            }),
+          )
+          .withTurnStarted();
+
+      await pumpScreen(
+        tester,
+        FakeAgentSession(
+          state: textCall(
+            'sed header',
+            '//!! Source Address (16 byte aligned)\nuint64_t data_addr:36;\nstruct {\n  uint64_t x:36;\n};\n',
+          ),
+        ),
+      );
+      await tester.tap(find.text('sed header'));
+      await tester.pump();
+      expect(find.byType(MdCodeBlock), findsOneWidget);
+
+      await pumpScreen(tester, FakeAgentSession(state: textCall('list files', 'notes.txt\nhello.txt\n')));
+      await tester.tap(find.text('list files'));
+      await tester.pump();
+      expect(find.byType(MdCodeBlock), findsNothing);
+      expect(find.byType(CodePanel), findsWidgets);
+      expect(find.text('notes.txt'), findsOneWidget);
     });
 
     testWidgets('a command that printed nothing says so; one still starting says it waits', (tester) async {
