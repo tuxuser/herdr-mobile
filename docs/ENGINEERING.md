@@ -969,8 +969,9 @@ cache holds shows by itself). Only a picture in a log line of up to 4 MiB (`FOLL
   the task list. The question tool is `ask_user_question` (result `details`
   hold the answers). A `subagent` spawn names its run (`details` `runId`);
   a `bg_wait` result lists whose runs completed, and a `subagent-notify`
-  notice says one finished. A finished run, a control notice and a supervisor
-  request are notes. A run's own transcript is
+  notice settles the runs its `details` `runs` list names (run id and
+  status; the text is shown, never parsed). A finished run, a control
+  notice and a supervisor request are notes. A run's own transcript is
   `<parent minus .jsonl>/<runId>/run-0/session.jsonl`, in the same format.
 - A subagent: Claude writes `<session>/subagents/agent-<agentId>.jsonl` with a
   `.meta.json` naming the call (`toolUseId`), every line `isSidechain: true`

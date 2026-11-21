@@ -195,7 +195,29 @@ class PiLogMapper implements SessionLogMapper {
     final key = _firstTime(e, line);
     if (key == null) return const [];
     _turnEnded = false;
+    _settleRuns(e);
     return [messageUpsert(MessageRole.agent, key, text)];
+  }
+
+  /// A completion notice settles the runs its details name, so a finished
+  /// run stops showing as running. Only the `runs` list decides; the notice
+  /// text is shown, never parsed.
+  void _settleRuns(Json e) {
+    final details = e['details'];
+    final runs = details is Map<String, dynamic> ? details['runs'] : null;
+    if (runs is! List) return;
+    final at = parseStamp(e);
+    for (final r in runs) {
+      if (r is! Map<String, dynamic>) continue;
+      final target = r['runId'];
+      if (target is! String || target.isEmpty) continue;
+      switch (r['status']) {
+        case 'completed':
+          _settle(target, false, at);
+        case 'failed':
+          _settle(target, true, at);
+      }
+    }
   }
 
   SessionUpdate? _toolStart(Json b) {
@@ -260,19 +282,10 @@ class PiLogMapper implements SessionLogMapper {
     return out;
   }
 
-  /// A `subagent` result: a spawn names its run, a status result settles it.
-  /// A failed spawn names nothing and leaves no roster entry.
+  /// A `subagent` result: a spawn names its run. Anything else (a status
+  /// poll, a failed spawn) names nothing and leaves the roster alone; runs
+  /// settle through `bg_wait` completions and completion notices.
   void _noteSubagent(String callId, Json m, _OpenCall? open) {
-    final target = open?.statusTarget;
-    if (target != null) {
-      final text = _resultText(m['content']);
-      if (text.contains('State: complete')) {
-        _settle(target, false, parseStamp(m));
-      } else if (text.contains('State: failed')) {
-        _settle(target, true, parseStamp(m));
-      }
-      return;
-    }
     final details = m['details'];
     final runId = details is Map<String, dynamic> ? details['runId'] : null;
     final asyncId = details is Map<String, dynamic> ? details['asyncId'] : null;
@@ -537,12 +550,6 @@ class _OpenCall {
 
   final String name;
 
-  /// The call's arguments: a spawn's `agent` and `task`, or a status call's
-  /// `id` that names the run its result settles.
+  /// The call's arguments: a spawn's `agent` and `task`.
   final Json? args;
-
-  String? get statusTarget {
-    final target = args?['id'];
-    return name == 'subagent' && args?['action'] == 'status' && target is String && target.isNotEmpty ? target : null;
-  }
 }

@@ -301,23 +301,18 @@ void main() {
         expect(m.subagents.single.status, 'failed');
       });
 
-      test('a status result of complete finishes it; running leaves it alone', () {
+      test('a status poll is a plain row: only completions and notices settle', () {
         final m = PiLogMapper();
         _feed(m, spawnLines('c1'));
-        String statusCall(String id) => _assistant(id, [
-          _call(id, 'subagent', {'action': 'status', 'id': run}),
-        ], stop: 'toolUse');
-        _feed(m, [
-          statusCall('c3'),
-          _result('r2', 'c3', 'subagent', 'State: running', details: {'mode': 'single'}),
+        final s = _feed(m, [
+          _assistant('c3', [
+            _call('c3', 'subagent', {'action': 'status', 'id': run}),
+          ], stop: 'toolUse'),
+          _result('r3', 'c3', 'subagent', 'State: complete', details: {'mode': 'single'}),
         ]);
+        expect(s.toolCall('c3')!.status, ToolStatus.completed);
         expect(m.backgroundTasks.single.status, BackgroundStatus.running);
-        _feed(m, [
-          statusCall('c4'),
-          _result('r3', 'c4', 'subagent', 'State: complete', details: {'mode': 'single'}),
-        ]);
-        expect(m.backgroundTasks.single.status, BackgroundStatus.finished);
-        expect(m.subagents.single.status, 'completed');
+        expect(m.subagents.single.status, 'running');
       });
 
       test('a failed spawn keeps no roster entry and no task', () {
@@ -345,6 +340,83 @@ void main() {
         ]);
         expect(_texts(s, MessageRole.agent).single, contains('Background task completed'));
         expect(m.turnEnded, isFalse);
+      });
+
+      // A completion notice names its runs in details (agent, status,
+      // runId); the text is shown, never parsed.
+      String notify(String run, String status) => _entry({
+        'type': 'custom_message',
+        'id': 'n-$run-$status',
+        'customType': 'subagent-notify',
+        'content': 'Background task completed: **worker**\n\nworker:\nDid the thing.',
+        'details': {
+          'runs': [
+            {'agent': 'worker', 'status': status, 'runId': run},
+          ],
+        },
+      });
+
+      test('a completion notice settles the runs its details name', () {
+        const run2 = 'aaaaaaaa-0000-4000-8000-000000000001';
+        final m = PiLogMapper();
+        _feed(m, spawnLines('c1'));
+        _feed(m, [notify(run, 'completed')]);
+        expect(m.subagents.single.status, 'completed');
+        expect(m.backgroundTasks.single.status, BackgroundStatus.finished);
+        // A failed run fails instead.
+        _feed(m, [
+          _assistant('a9', [
+            _call('c9', 'subagent', {'agent': 'worker', 'task': 'other'}),
+          ], stop: 'toolUse'),
+          _result(
+            'r9',
+            'c9',
+            'subagent',
+            'Async: worker [$run2]',
+            details: {'mode': 'single', 'runId': run2, 'asyncId': run2},
+          ),
+        ]);
+        expect(m.subagents.map((s) => s.status), ['completed', 'running']);
+        _feed(m, [notify(run2, 'failed')]);
+        expect(m.subagents.map((s) => s.status), ['completed', 'failed']);
+        expect(m.backgroundTasks.map((t) => t.status), [BackgroundStatus.finished, BackgroundStatus.failed]);
+      });
+
+      test('a notice without named runs settles nothing, however the text reads', () {
+        final m = PiLogMapper();
+        _feed(m, spawnLines('c1'));
+        _feed(m, [
+          _entry({
+            'type': 'custom_message',
+            'id': 'n1',
+            'customType': 'subagent-notify',
+            'content': 'Background task completed: **worker**\n\nworker:\nDid the thing.',
+          }),
+        ]);
+        expect(m.subagents.single.status, 'running');
+        expect(m.backgroundTasks.single.status, BackgroundStatus.running);
+      });
+
+      test('a notice for an unknown run or status settles nothing', () {
+        final m = PiLogMapper();
+        _feed(m, spawnLines('c1'));
+        _feed(m, [
+          _entry({
+            'type': 'custom_message',
+            'id': 'n1',
+            'customType': 'subagent-notify',
+            'content': 'Background task completed: **worker**',
+            'details': {
+              'runs': [
+                {'agent': 'worker', 'status': 'completed', 'runId': 'nope'},
+                {'agent': 'worker', 'status': 'paused', 'runId': run},
+                {'agent': 'worker', 'runId': run},
+              ],
+            },
+          }),
+        ]);
+        expect(m.subagents.single.status, 'running');
+        expect(m.backgroundTasks.single.status, BackgroundStatus.running);
       });
 
       test('a notice of a run that needs attention is an agent note', () {
