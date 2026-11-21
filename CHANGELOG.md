@@ -4,6 +4,20 @@ What changed for the person using herdr mobile, newest first. Versions follow
 `0.1.x` patch releases; each section is the release notes of its GitHub
 release.
 
+## [0.1.70] - 2026-11-21
+
+### Nicer tool output, truthful subagents, pi model and context
+
+Tool output that reads as source code now shows in syntax colours.
+Before, it was plain text, and files with Windows line endings sprayed
+`U+000D` markers on every line. Both are fixed.
+
+A finished subagent run no longer shows as running forever.
+The chat reads the run's end from the log's own records.
+
+A pi session's overview now names its model and thinking level.
+Its context section shows how much of the window is used.
+
 ## [0.1.69] - 2026-11-20
 
 ### A pi chat that just started waits instead of failing
