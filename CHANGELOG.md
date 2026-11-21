@@ -4,6 +4,16 @@ What changed for the person using herdr mobile, newest first. Versions follow
 `0.1.x` patch releases; each section is the release notes of its GitHub
 release.
 
+## [0.1.71] - 2026-11-21
+
+### Finished subagents, model and context
+
+A finished subagent run no longer shows as running for hours.
+The chat reads the run's end from the log's own records.
+
+A pi session's overview names its model, thinking level and context use.
+Even long sessions that open at the tail of their log show them.
+
 ## [0.1.70] - 2026-11-21
 
 ### Nicer tool output, truthful subagents, pi model and context
