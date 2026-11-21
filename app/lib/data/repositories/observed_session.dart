@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' show AppLifecycleState;
 
@@ -442,6 +443,7 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
 
   void _startWide() {
     _wideMapper = _newMapper();
+    _sizeMapper(_wideMapper!);
     _wideLog = AgentSessionState(_log.sessionId);
     _wideHead = null;
   }
@@ -1264,6 +1266,8 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
               if (!_ready) _setLink(AgentLink.connecting);
               await _loadContextSizes();
               if (!_alive(epoch)) return;
+              await _applyHead(path);
+              if (!_alive(epoch)) return;
               final gotRecords = await _followOnce(path, epoch);
               if (!_alive(epoch)) return;
               if (gotRecords) attempt = 0;
@@ -1317,21 +1321,46 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
   /// Where the log is now: what the agent's locator says about the pane (herdr
   /// names it, or its files do), or, for a subagent, where its kind keeps the
   /// transcript.
-  /// The model catalog of a mapper that sizes context by it, loaded once:
-  /// usage grows a window size from the first follow on. A catalog that
-  /// cannot be read leaves usage unsized; the chat must never fail because
-  /// this enrichment did, so the failure stays silent here by design.
+  ///
+  /// The model catalog, loaded once: every mapper this session makes sizes
+  /// context from it, so a wider read that replaces the mapper loses
+  /// nothing. A catalog that cannot be read leaves usage unsized; the chat
+  /// must never fail because this enrichment did, so the failure stays
+  /// silent by design.
+  Map<String, int>? _contextSizes;
+
   Future<void> _loadContextSizes() async {
-    final mapper = _mapper;
+    _contextSizes ??= await loadPiContextSizes(machine.files).catchError((Object _) => null);
+    _sizeMapper(_mapper);
+  }
+
+  void _sizeMapper(SessionLogMapper mapper) {
     if (mapper is! ContextSizedMapper) return;
-    final sized = mapper as ContextSizedMapper;
-    if (sized.contextSizes != null) return;
+    (mapper as ContextSizedMapper).contextSizes = _contextSizes;
+  }
+
+  /// Session-level facts live at the head of the log (what the agent runs
+  /// as), but a follow usually starts at the tail of a long file: read the
+  /// first lines once per fresh follow so the facts are never missed. Best
+  /// effort like the sizes table; a replay changes nothing, and it never
+  /// touches the follow offset.
+  Future<void> _applyHead(String path) async {
+    if (_offset != null) return;
     try {
-      sized.contextSizes = await loadPiContextSizes(machine.files);
+      final bytes = await machine.files.read(path, length: _headBytes);
+      final text = utf8.decode(bytes, allowMalformed: true);
+      final lines = text.split('\n');
+      // The last line may be cut mid-entry: it follows with the tail.
+      for (var i = 0; i < lines.length - 1; i++) {
+        if (lines[i].isNotEmpty) _applyLine(lines[i]);
+      }
+      _refresh();
     } on Object {
-      sized.contextSizes = null;
+      // The follow carries the conversation; the head only adds its facts.
     }
   }
+
+  static const _headBytes = 64 * 1024;
 
   Future<LogLocation> _locate() async {
     if (_isSub) {
@@ -1396,7 +1425,10 @@ class ObservedAgentSession extends ChangeNotifier implements AgentSessionView, S
     var work = Future<void>.value();
     // A wider read that starts over (the link dropped before any of it came)
     // is mapped from scratch; one that resumes goes on where it was.
-    if (_offset == null && _wideLog != null) _startWide();
+    // A started wide read is never restarted here: its mapper already holds
+    // the head facts, and restarting would wipe them before the wider
+    // window (which still starts at the tail) replays. Resuming replays the
+    // window into the kept log and mapper instead.
     final sub = _source
         .follow(path, from: _offset, tailBytes: _offset == null ? _tailBytes : null)
         .listen(
